@@ -138,33 +138,55 @@ LogLevel Info
 # The upstream rules allow you to selectively route upstream connections
 # based on the host/domain of the site being accessed.
 #
-# For example:
-#  # connection to test domain goes through testproxy
-#  upstream testproxy:8008 ".test.domain.invalid"
-#  upstream testproxy:8008 ".our_testbed.example.com"
-#  upstream testproxy:8008 "192.168.128.0/255.255.254.0"
+# Several upstream directives can be specified; the LAST matching rule
+# decides the route.
 #
-#  # no upstream proxy for internal websites and unqualified hosts
-#  no upstream ".internal.example.com"
-#  no upstream "www.example.com"
-#  no upstream "10.0.0.0/8"
-#  no upstream "192.168.0.0/255.255.254.0"
-#  no upstream "."
+# The following directives are available:
 #
-#  # connection to these boxes go through their DMZ firewalls
-#  upstream cust1_firewall:8008 "testbed_for_cust1"
-#  upstream cust2_firewall:8008 "testbed_for_cust2"
+# Upstream <IP|host>:<port>
+#   Sets the default upstream for all requests to <IP|host>:<port>
 #
-#  # default upstream is internet firewall
-#  upstream firewall.internal.example.com:80
+# Upstream <IP|host>:<port> dest "<destination>"
+#   Sets the upstream for all requests for "<destination>".
 #
-# The LAST matching rule wins the route decision.  As you can see, you
-# can use a host, or a domain:
+# No Upstream dest "<destination>"
+#   Disables upstream use for all requests for "<destination>".
+#
+# Upstream <IP|host>:<port> "<destination>"
+#   Backwards compatibility syntax for the "dest" match above.
+#
+# No Upstream "<destination-address>"
+#   Backwards compatibility syntax for the "dest" match above.
+#
+# The <destination> parameter can be a full hostname, domain wildcard
+# or an IP block:
+#
 #  name     matches host exactly
 #  .name    matches any host in domain "name"
 #  .        matches any host with no domain (in 'empty' domain)
 #  IP/bits  matches network/mask
 #  IP/mask  matches network/mask
+#
+# Examples:
+#
+#   # connection to test domain goes through testproxy
+#   Upstream testproxy:8008 dest ".test.domain.invalid"
+#   Upstream testproxy:8008 dest ".our_testbed.example.com"
+#   Upstream testproxy:8008 dest "192.168.128.0/255.255.254.0"
+#
+#   # no upstream proxy for internal websites and unqualified hosts
+#   No Upstream dest ".internal.example.com"
+#   No Upstream dest "www.example.com"
+#   No Upstream dest "10.0.0.0/8"
+#   No Upstream dest "192.168.0.0/255.255.254.0"
+#   No Upstream dest "."
+#
+#   # connection to these boxes go through their DMZ firewalls
+#   Upstream cust1_firewall:8008 dest "testbed_for_cust1"
+#   Upstream cust2_firewall:8008 dest "testbed_for_cust2"
+#
+#   # default upstream is internet firewall
+#   Upstream firewall.internal.example.com:80
 #
 #Upstream some.remote.proxy:port
 

@@ -155,20 +155,25 @@ The possible keywords and their descriptions are as follows:
 
     * 'upstream host:port' turns proxy upstream support on generally.
 
-    * 'upstream host:port "site_spec"' turns on the upstream proxy for
-    the sites matching `site_spec`.
+    * 'upstream host:port <method> [params...]' turns on the upstream
+    proxy for requests matching `method` and `params`.
 
-    * 'no upstream "site_spec"' turns off upstream support for sites
-    matching `site_spec`.
+    * 'no upstream <method> [params...]' turns off upstream support for
+    requests matching `method` and `params`.
 
-    The site can be specified in various forms as a hostname, domain
-    name or as an IP range:
+    Currently the only method is `dest`, which takes a destination
+    address match as its parameter. This can be specified in various
+    forms as a hostname, domain name or as an IP range:
 
     * 'name'     matches host exactly
     * '.name'    matches any host in domain "name"
     * '.'        matches any host with no domain (in 'empty' domain)
     * 'IP/bits'  matches network/mask
     * 'IP/mask'  matches network/mask
+
+
+    For backwards compatibility, if `<method>` is omitted, `dest` is
+    assumed.
 
 *MaxClients*::
 

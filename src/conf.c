@@ -75,6 +75,7 @@
         ")"
 
 #define IPV6MASK "(" IPV6 "(/[[:digit:]]+)?)"
+/* TODO */
 #define BEGIN "^[[:space:]]*"
 #define END "[[:space:]]*$"
 
@@ -250,13 +251,25 @@ struct {
 #endif
 #ifdef UPSTREAM_SUPPORT
         /* upstream is rather complicated */
-        {
-                BEGIN "(no" WS "upstream)" WS STR END, handle_upstream_no, NULL
-        },
-        {
-                BEGIN "(upstream)" WS "(" IP "|" ALNUM ")" ":" INT "(" WS STR
-                      ")?" END, handle_upstream, NULL
-        },
+#define BEGIN_UPSTREAM    BEGIN "(upstream)" WS "(" IP "|" ALNUM ")" ":" INT
+#define BEGIN_UPSTREAM_NO BEGIN "(no" WS "upstream)"
+        /* Default upstream */
+        { BEGIN_UPSTREAM END, handle_upstream, NULL },
+
+        /* Dest-matched upstream (compatibility syntax for "dest" below).
+           The empty capture "()" is used to align match indexes with other REs here. */
+        { BEGIN_UPSTREAM_NO WS "()" STR END, handle_upstream_no, NULL },
+        { BEGIN_UPSTREAM    WS "()" STR END, handle_upstream,    NULL },
+
+        /* Upstream matches with one string argument */
+        { BEGIN_UPSTREAM_NO WS "(dest)" WS STR END, handle_upstream_no, NULL },
+        { BEGIN_UPSTREAM    WS "(dest)" WS STR END, handle_upstream,    NULL },
+
+        /* Upstream matches with two string arguments */
+        /**
+        { BEGIN_UPSTREAM_NO WS "(header)" WS STR WS STR END, handle_upstream_no, NULL },
+        { BEGIN_UPSTREAM    WS "(header)" WS STR WS STR END, handle_upstream,    NULL },
+        **/
 #endif
         /* loglevel */
         STDCONF ("loglevel", "(critical|error|warning|notice|connect|info)",
@@ -1072,41 +1085,125 @@ static HANDLE_FUNC (handle_reversepath)
 #ifdef UPSTREAM_SUPPORT
 static HANDLE_FUNC (handle_upstream)
 {
+        /* Syntaxes and their regexp submatch indexes */
+
+        /* Upstream <IP|host>:<port>
+               2: IP/host  (3: IP, 6: host)
+               7: port
+         */
+
+        /* Upstream <IP|host>:<port> "<destination-address>"
+               2: IP/host  (3: IP, 6: host)
+               7: port
+               9: ""
+               10: destination (param0) */
+
+        /* Upstream <IP|host>:<port> <method> [param....]
+               2: IP/host  (3: IP, 6: host)
+               7: port
+               9: method
+               10: param0
+               11: param1... */
+
         char *ip;
         int port;
-        char *domain;
+        char *method;
 
         ip = get_string_arg (line, &match[2]);
         if (!ip)
                 return -1;
         port = (int) get_long_arg (line, &match[7]);
 
-        if (match[10].rm_so != -1) {
-                domain = get_string_arg (line, &match[10]);
-                if (domain) {
-                        upstream_add (ip, port, domain, &conf->upstream_list);
-                        safefree (domain);
-                }
-        } else {
+        if (match[9].rm_so == -1) {
+                /* Default upstream */
                 upstream_add (ip, port, NULL, &conf->upstream_list);
+                safefree(ip);
+                return 0;
         }
 
-        safefree (ip);
+        method = get_string_arg (line, &match[9]);
 
+        /* Compatibility syntax */
+        if (! strlen(method)) {
+                safefree(method);
+                method = strdup("dest");
+        }
+
+        /* Choose method */
+        if (! strcmp("dest", method)){
+                char *dest = get_string_arg (line, &match[10]);
+                if (! dest) {
+                        fprintf (stderr, "No destination for upstream defined");
+                        return -1;
+                }
+                upstream_add (ip, port, dest, &conf->upstream_list);
+                safefree(dest);
+
+        } /** else if (! strcmp("header", method)){
+                char *headname = get_string_arg(line, &match[10]);
+                char *headval  = get_string_arg(line, &match[11]);
+                log_message(LOG_INFO, "Adding upstream[header] ip=%s port=%d method=%s headername=%s headervalue=%s",
+                        ip, port, method, headname, headval);
+
+                safefree(headname);
+                safefree(headval);
+
+        } **/ else {
+                fprintf (stderr, "Unknown upstream selection method %s", method);
+                return -1;
+        }
+
+        safefree(ip);
+        safefree(method);
         return 0;
 }
 
 static HANDLE_FUNC (handle_upstream_no)
 {
-        char *domain;
+        /* Syntaxes and their regexp submatch indexes */
 
-        domain = get_string_arg (line, &match[2]);
-        if (!domain)
+        /* No upstream "<destination-address>"
+               2: ""
+               3: dest  */
+
+        /* No upstream <method> [param...]
+               2: method
+               3: param0
+               4: param1...  */
+
+        char *method;
+        method = get_string_arg (line, &match[2]);
+
+        /* Compatibility syntax */
+        if (! strlen(method)) {
+                safefree(method);
+                method = strdup("dest");
+        }
+
+        if (! strcmp("dest", method)){
+                char *dest = get_string_arg (line, &match[3]);
+                if (! dest) {
+                        fprintf (stderr, "No destination for upstream defined");
+                        return -1;
+                }
+                upstream_add (NULL, 0, dest, &conf->upstream_list);
+                safefree(dest);
+
+        } /** else if (! strcmp ("header", method)){
+                char *headname = get_string_arg(line, &match[3]);
+                char *headval  = get_string_arg(line, &match[4]);
+                log_message(LOG_INFO, "Adding no upstream[header] method=%s headername=%s headervalue=%s",
+                        method, headname, headval);
+
+                safefree(headname);
+                safefree(headval);
+
+        } **/ else {
+                fprintf (stderr, "Unknown upstream selection method %s", method);
                 return -1;
+        }
 
-        upstream_add (NULL, 0, domain, &conf->upstream_list);
-        safefree (domain);
-
+        safefree(method);
         return 0;
 }
 #endif
